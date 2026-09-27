@@ -23,37 +23,50 @@ jobs:
           "${{ steps.ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang" \
             -O2 -pthread -o termux-gui-bash-helper src/helper.c
 
-      - name: Assemble .deb package
+      - name: Assemble full .deb package
         run: |
           PKGROOT=pkgroot
           TERMUX_PREFIX=/data/data/com.termux/files/usr
+          SHARE="$PKGROOT$TERMUX_PREFIX/share/tgui-bash"
 
           mkdir -p "$PKGROOT/DEBIAN"
           mkdir -p "$PKGROOT$TERMUX_PREFIX/bin"
           mkdir -p "$PKGROOT$TERMUX_PREFIX/libexec"
+          mkdir -p "$SHARE"
 
+          # C helper
           cp termux-gui-bash-helper "$PKGROOT$TERMUX_PREFIX/libexec/termux-gui-bash-helper"
           chmod 755 "$PKGROOT$TERMUX_PREFIX/libexec/termux-gui-bash-helper"
 
-          sed "s|@TERMUX_PREFIX@|$TERMUX_PREFIX|g" src/tgui-bash.sh > "$PKGROOT$TERMUX_PREFIX/bin/tgui-bash"
+          # główny launcher "tgui-bash" - self-extracting gzip, jak w oryginalnym CMakeLists.txt
+          sed "s|@TERMUX_PREFIX@|$TERMUX_PREFIX|g" src/unzip.sh > "$PKGROOT$TERMUX_PREFIX/bin/tgui-bash"
+          printf '\n' >> "$PKGROOT$TERMUX_PREFIX/bin/tgui-bash"   # bez tego __ARCHIVE_START__ się nie znajdzie
+          sed "s|@TERMUX_PREFIX@|$TERMUX_PREFIX|g" src/tgui-bash.sh > tgui-bash-configured.sh
+          gzip -c tgui-bash-configured.sh >> "$PKGROOT$TERMUX_PREFIX/bin/tgui-bash"
           chmod 755 "$PKGROOT$TERMUX_PREFIX/bin/tgui-bash"
+
+          # docviewer + HTML manuals/tutorials (as in original repo)
+          sed "s|@TERMUX_PREFIX@|$TERMUX_PREFIX|g" src/docviewer.sh > "$SHARE/docviewer.sh"
+          chmod 755 "$SHARE/docviewer.sh"
+          cp doc_html/tutorial-light.html.gz doc_html/tutorial-dark.html.gz \
+             doc_html/manual-light.html.gz doc_html/manual-dark.html.gz "$SHARE/"
+          chmod 644 "$SHARE"/*.html.gz
 
           cat > "$PKGROOT/DEBIAN/control" << 'EOF'
           Package: termux-gui-bash
-          Version: 0.0.1-custom
+          Version: 0.1.2-1-unrestricted
           Architecture: aarch64
-          Maintainer: githud.com/tempuserr
+          Maintainer: github.com/tempuserr
           Depends: bash, jq
-          Description: termux-gui-bash unrestricted from Termux shredUserID
-           for use with a termux-gui-standalone
-           fork that no longer shares com.termux's UID.
+          Description: Unrestricted termux-gui-bash (based on 0.1.2-1) without UID
+           check to work with termux-gui-standalone fork.
           EOF
 
-          dpkg-deb --build --root-owner-group "$PKGROOT" termux-gui-bash-unrestricted.deb
+          dpkg-deb --build --root-owner-group "$PKGROOT" termux-gui-bash-custom.deb
 
-      - name: Create release
+      - name: Create/update release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: "Build #${{ github.run_number }}"
+          tag_name: latest
+          name: "Latest custom build"
           files: termux-gui-bash-unrestricted.deb
