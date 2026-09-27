@@ -1,0 +1,59 @@
+name: Build tgui-bash helper
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Android NDK
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27c
+
+      - name: Compile helper (arm64)
+        run: |
+          "${{ steps.ndk.outputs.ndk-path }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang" \
+            -O2 -pthread -o termux-gui-bash-helper src/helper.c
+
+      - name: Assemble .deb package
+        run: |
+          PKGROOT=pkgroot
+          TERMUX_PREFIX=/data/data/com.termux/files/usr
+
+          mkdir -p "$PKGROOT/DEBIAN"
+          mkdir -p "$PKGROOT$TERMUX_PREFIX/bin"
+          mkdir -p "$PKGROOT$TERMUX_PREFIX/libexec"
+
+          cp termux-gui-bash-helper "$PKGROOT$TERMUX_PREFIX/libexec/termux-gui-bash-helper"
+          chmod 755 "$PKGROOT$TERMUX_PREFIX/libexec/termux-gui-bash-helper"
+
+          sed "s|@TERMUX_PREFIX@|$TERMUX_PREFIX|g" src/tgui-bash.sh > "$PKGROOT$TERMUX_PREFIX/bin/tgui-bash"
+          chmod 755 "$PKGROOT$TERMUX_PREFIX/bin/tgui-bash"
+
+          cat > "$PKGROOT/DEBIAN/control" << 'EOF'
+          Package: termux-gui-bash
+          Version: 0.0.1-custom
+          Architecture: aarch64
+          Maintainer: githud.com/tempuserr
+          Depends: bash, jq
+          Description: termux-gui-bash unrestricted from Termux shredUserID
+           for use with a termux-gui-standalone
+           fork that no longer shares com.termux's UID.
+          EOF
+
+          dpkg-deb --build --root-owner-group "$PKGROOT" termux-gui-bash-unrestricted.deb
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Build #${{ github.run_number }}"
+          files: termux-gui-bash-unrestricted.deb
