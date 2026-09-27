@@ -173,12 +173,7 @@ int main(int argc, char** argv) {
     if (getsockopt(socket_fd, SOL_SOCKET, SO_PEERCRED, &cred, &len) == -1) {
         printError("Could not get peer uid");
     }
-    
-    if (cred.uid != getuid()) {
-        fprintf(stderr, "Refused connection from UID %d\n", cred.uid);
-        exit(UID_ERROR);
-    }
-    
+      
     if (main) {
         uint8_t byte = 1;
         if (write(socket_fd, &byte, 1) <= 0) exit(CONNECTION_TERMINATED);
