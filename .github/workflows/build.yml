@@ -53,7 +53,7 @@ jobs:
           chmod 644 "$SHARE"/*.html.gz
 
           cat > "$PKGROOT/DEBIAN/control" << 'EOF'
-          Package: termux-gui-bash
+          Package: termux-gui-bash-unrestricted
           Version: 0.1.2-1-unrestricted
           Architecture: aarch64
           Maintainer: github.com/tempuserr
@@ -62,7 +62,7 @@ jobs:
            check to work with termux-gui-standalone fork.
           EOF
 
-          dpkg-deb --build --root-owner-group "$PKGROOT" termux-gui-bash-custom.deb
+          dpkg-deb --build --root-owner-group "$PKGROOT" termux-gui-bash-unrestricted.deb
 
       - name: Create/update release
         uses: softprops/action-gh-release@v2
